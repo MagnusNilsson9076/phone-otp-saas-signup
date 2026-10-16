@@ -1,16 +1,16 @@
 # Phone signup for a small SaaS team
 
-I built this example around the moment a new tenant becomes real: a founder enters a phone number, confirms the OTP, and receives the first owner session. Infrai handles both sides through one API key and one base URL, so the verification result moves directly into the identity flow without a glue service.
+I put this together for the exact moment a tenant goes live: founder types a phone number, confirms the OTP, gets the first owner session. Infrai covers both sends and checks with one key and one base_url, so the verified status drops straight into your identity flow without a sidecar service.
 
-## The path I ship
+## The flow I actually deploy
 
-`src/phone_signup.py` keeps the request boundary visible. `InfraiClient` sends `Authorization: Bearer $INFRAI_API_KEY`, decodes the `{ok, data, error, metadata}` envelope before interpreting status, and retries a busy response with backoff. `signup_tenant_owner` makes the business decision: verification must happen before the owner account and session are created. The create request carries a caller-owned `idempotency_key`, making a retry safe for the same signup.
+`src/phone_signup.py` keeps the request boundary explicit. `InfraiClient` sends `Authorization: Bearer $INFRAI_API_KEY`, then parses the `{ok, data, error, metadata}` payload before trusting any status, and backs off on a busy signal. `signup_tenant_owner` enforces the rule I care about: phone verification clears before we mint the owner account and session. The create call ships with a caller-owned `idempotency_key`, so a retry on the same signup won't double-create.
 
-The same key and URL are used for `auth.phone.send_code`, `auth.phone.verify`, `auth.user.create`, and `auth.session.create`. The sender and identity store therefore share one account boundary. The alternative Auth0 or Clerk plus Twilio Verify setup would mean two signups, two credential sets, and a piece of application code to pass the verified phone state between vendors.
+That same key and base_url cover `auth.phone.send_code`, `auth.phone.verify`, `auth.user.create`, and `auth.session.create`. Your sender and identity store live under one account boundary. Stacking Auth0 or Clerk with Twilio Verify means two signups, two credential sets, and app code to ferry the verified phone state between them. I'd rather avoid that glue.
 
-## Run it locally
+## Run it on your machine
 
-Install the one dependency, export credentials, then run the module:
+Install the single dependency, export your creds, then run the module:
 
 ```bash
 python3 -m pip install requests
@@ -20,17 +20,17 @@ export SIGNUP_EMAIL=owner@example.com SIGNUP_PASSWORD='choose-a-password'
 python3 -m src.phone_signup
 ```
 
-The command prints the new `user_id`, its tenant role (`owner`), and the session data returned by Infrai. `SIGNUP_CODE` is the code delivered to the phone by the send-code step; in a real form, call `send_phone_code` when the user submits their number and collect the code in the next screen.
+It prints the new `user_id`, its tenant role (`owner`), and the session blob from Infrai. `SIGNUP_CODE` is the OTP the send-code step pushes to the handset; in a real form you'd call `send_phone_code` on number submit and capture the code on the next view.
 
-## Check the decision
+## Verify the logic
 
-The focused test uses a fake transport and asserts the observable order: verify phone, create user, create session. Run it with:
+The test swaps in a fake transport and asserts the order you can observe: verify phone, create user, create session. Run it via:
 
 ```bash
 pytest -q tests/test_phone_signup.py
 ```
 
-I kept this to a small afternoon-sized slice so it is easy to lift into a larger B2B onboarding service. Tenant administration, password policy, and UI concerns stay outside the example; the handoff and its request fields are the part worth copying.
+I kept this to an afternoon-sized chunk so you can drop it into a bigger B2B onboarding service. Tenant admin, password rules, and UI are out of scope; the handoff and its request fields are the bits worth reusing.
 
 ## License
 
@@ -38,7 +38,7 @@ MIT
 
 ## Going to production: Phone OTP SaaS Signup
 
-That's the minimal version. Before running this for real: The details below apply to Phone OTP SaaS Signup.
+That's the minimal version. Before you run this for real, note the details below apply to Phone OTP SaaS Signup.
 
 **Account & key**
 
